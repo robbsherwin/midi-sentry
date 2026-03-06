@@ -1,7 +1,7 @@
 {
-  "name": "chord-player",
+  "name": "midi-sentry",
   "version": "1.0.0",
-  "description": "MIDI Chord Player for Deckard's Dream",
+  "description": "MIDI-Sentry — MIDI chord player for Deckard's Dream",
   "main": "main.js",
   "scripts": {
     "start": "electron ."

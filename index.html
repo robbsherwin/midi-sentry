@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Chord Player</title>
+  <title>MIDI-Sentry</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
@@ -231,6 +231,35 @@
 
     .white-key.active .key-label { color: rgba(255,255,255,0.9); }
 
+    /* Optional note labels (non-C keys) — shown when toggle is on */
+    .white-key .key-label-note {
+      display: none;
+      color: #6a6a7a;
+    }
+    .show-key-names .white-key .key-label-note { display: block; }
+    .white-key.active .key-label-note { color: rgba(255,255,255,0.9); }
+
+    .black-key .key-label {
+      position: absolute;
+      bottom: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Space Mono', monospace;
+      font-size: 8px;
+      color: rgba(255,255,255,0.85);
+      letter-spacing: 0;
+      pointer-events: none;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      line-height: 1.15;
+    }
+    .black-key .key-label span { display: block; }
+    .show-key-names .black-key .key-label { display: flex; }
+    .black-key.active .key-label,
+    .black-key.active .key-label span { color: rgba(255,255,255,0.95); }
+
     .black-key {
       position: absolute;
       width: 20px;
@@ -388,6 +417,25 @@
     }
     #devtools-btn:hover { border-color: var(--accent); color: var(--accent); }
 
+    #key-labels-toggle {
+      padding: 5px 10px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.1em;
+    }
+    #key-labels-toggle:hover { border-color: var(--accent); color: var(--accent); }
+    #key-labels-toggle.on {
+      background: rgba(0,136,170,0.15);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
     /* ── VELOCITY ── */
     #vel-row {
       display: flex;
@@ -492,6 +540,7 @@
       align-items: baseline;
       gap: 8px;
       padding: 6px 12px;
+      padding-right: 28px;
       background: rgba(0,136,170,0.08);
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -499,6 +548,7 @@
       flex-shrink: 0;
       cursor: pointer;
       transition: border-color 0.15s, background 0.15s;
+      position: relative;
     }
     .chord-history-item:hover {
       border-color: var(--accent);
@@ -506,6 +556,32 @@
     }
     .chord-history-item .chord-name { font-weight: 700; color: var(--accent); font-size: 12px; }
     .chord-history-item .chord-notes { color: var(--muted); font-size: 11px; }
+    .chord-history-item-remove {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #cc3344;
+      border: none;
+      color: white;
+      font-size: 12px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      transition: background 0.15s, transform 0.15s;
+    }
+    .chord-history-item-remove:hover {
+      background: #e04455;
+      transform: scale(1.1);
+    }
+    .chord-history-item-remove:focus {
+      outline: none;
+    }
     #chord-history-actions {
       display: flex;
       gap: 8px;
@@ -538,7 +614,7 @@
 
   <!-- Header -->
   <header>
-    <div class="logo">CHORD//PLAYER <span>for Deckard's Dream</span></div>
+    <div class="logo">MIDI-SENTRY <span>for Deckard's Dream</span></div>
     <div style="display:flex; align-items:center; gap:20px;">
       <div class="controls-row">
         <div id="vel-row">
@@ -566,6 +642,9 @@
           <select id="midi-output-select"><option value="">— select device —</option></select>
           <button id="refresh-btn">↺ REFRESH</button>
           <button id="devtools-btn">DEVTOOLS</button>
+        </div>
+        <div id="key-labels-row">
+          <button id="key-labels-toggle" type="button" class="toggle-btn" title="Show note names on all keys">KEY NAMES</button>
         </div>
       </div>
       <div id="midi-status">
@@ -668,8 +747,9 @@ const CHORD_DISPLAY_SHORT = {
   power: '5', oct: '8'
 };
 
-// Note names
+// Note names (sharp) and flat equivalents for black keys
 const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const FLAT_NAMES  = ['','Db','','Eb','','','Gb','','Ab','','Bb',''];
 
 function midiToNoteName(midi) {
   const oct = Math.floor(midi / 12) - 1;
@@ -678,6 +758,10 @@ function midiToNoteName(midi) {
 
 function midiToName(midi) {
   return NOTE_NAMES[midi % 12];
+}
+
+function midiToFlatName(midi) {
+  return FLAT_NAMES[midi % 12];
 }
 
 // ═══════════════════════════════════════════════════
@@ -750,13 +834,10 @@ function buildPiano() {
       const el = document.createElement('div');
       el.className = 'white-key';
       el.dataset.note = note;
-      // Label C notes
-      if (note % 12 === 0) {
-        const lbl = document.createElement('div');
-        lbl.className = 'key-label';
-        lbl.textContent = midiToNoteName(note);
-        el.appendChild(lbl);
-      }
+      const lbl = document.createElement('div');
+      lbl.className = note % 12 === 0 ? 'key-label' : 'key-label key-label-note';
+      lbl.textContent = note % 12 === 0 ? midiToNoteName(note) : midiToName(note);
+      el.appendChild(lbl);
       el.addEventListener('click', () => triggerChord(note));
       keyElements[note] = el;
       whiteKeys.push({ el, note });
@@ -779,6 +860,17 @@ function buildPiano() {
       const el = document.createElement('div');
       el.className = 'black-key';
       el.dataset.note = note;
+      const lbl = document.createElement('div');
+      lbl.className = 'key-label';
+      const flat = midiToFlatName(note);
+      const sharp = midiToName(note);
+      const flatSpan = document.createElement('span');
+      flatSpan.textContent = flat;
+      const sharpSpan = document.createElement('span');
+      sharpSpan.textContent = sharp;
+      lbl.appendChild(flatSpan);
+      lbl.appendChild(sharpSpan);
+      el.appendChild(lbl);
       // Position: center on the gap between the two adjacent white keys
       el.style.left = (wIdx * wWidth - 11) + 'px';
       el.addEventListener('click', () => triggerChord(note));
@@ -957,7 +1049,7 @@ function playChordFromHistory(entry) {
 function renderChordHistory() {
   const list = document.getElementById('chord-history-list');
   list.innerHTML = '';
-  chordHistory.forEach((entry) => {
+  chordHistory.forEach((entry, index) => {
     const { chordName, noteNames } = entry;
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -970,7 +1062,21 @@ function renderChordHistory() {
     notesSpan.textContent = '(' + noteNames + ')';
     btn.appendChild(nameSpan);
     btn.appendChild(notesSpan);
-    btn.addEventListener('click', () => playChordFromHistory(entry));
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'chord-history-item-remove';
+    removeBtn.innerHTML = '&times;';
+    removeBtn.setAttribute('aria-label', 'Remove chord');
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      chordHistory.splice(index, 1);
+      renderChordHistory();
+    });
+    btn.appendChild(removeBtn);
+    btn.addEventListener('click', (e) => {
+      if (e.target === removeBtn || removeBtn.contains(e.target)) return;
+      playChordFromHistory(entry);
+    });
     list.appendChild(btn);
   });
 }
@@ -1116,6 +1222,12 @@ document.getElementById('devtools-btn').addEventListener('click', () => {
     window.electronAPI.openDevTools();
   }
 });
+document.getElementById('key-labels-toggle').addEventListener('click', function() {
+  const app = document.getElementById('app');
+  const on = app.classList.toggle('show-key-names');
+  this.classList.toggle('on', on);
+});
+
 document.getElementById('chord-history-clear').addEventListener('click', () => {
   chordHistory = [];
   renderChordHistory();

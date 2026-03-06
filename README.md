@@ -1,4 +1,4 @@
-# Chord Player — for Deckard's Dream
+# MIDI-Sentry — for Deckard's Dream
 
 A MIDI chord player app built with Electron. Click any key on the 88-key display, with a chord type selected, and the app sends the full chord to your Deckard's Dream via MIDI.
 
