@@ -516,7 +516,7 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 8px;
-      min-height: 72px;
+      min-height: 88px;
     }
     .chord-history-label {
       font-family: 'Space Mono', monospace;
@@ -531,7 +531,8 @@
       gap: 12px;
       align-items: center;
       overflow-x: auto;
-      padding-bottom: 2px;
+      overflow-y: visible;
+      padding: 10px 0 2px 0;
       scrollbar-width: thin;
       scrollbar-color: var(--border) transparent;
     }
@@ -679,6 +680,7 @@
     <div class="chord-history-label">Chords played</div>
     <div id="chord-history-list"></div>
     <div id="chord-history-actions">
+      <button id="chord-history-save-midi">SAVE MIDI</button>
       <button id="chord-history-clear">CLEAR</button>
       <button id="chord-history-del-last">DEL LAST</button>
     </div>
@@ -1226,6 +1228,20 @@ document.getElementById('key-labels-toggle').addEventListener('click', function(
   const app = document.getElementById('app');
   const on = app.classList.toggle('show-key-names');
   this.classList.toggle('on', on);
+});
+
+document.getElementById('chord-history-save-midi').addEventListener('click', async () => {
+  if (!chordHistory.length) return;
+  if (!window.electronAPI || !window.electronAPI.saveMidiFile) return;
+  const result = await window.electronAPI.saveMidiFile(chordHistory);
+  if (result.ok) {
+    const statusEl = document.getElementById('status-text');
+    if (statusEl) statusEl.textContent = 'MIDI SAVED';
+    setTimeout(() => { if (statusEl) statusEl.textContent = document.getElementById('midi-output-select').selectedOptions[0]?.textContent?.toUpperCase().slice(0, 24) || 'SELECT DEVICE'; }, 2000);
+  } else if (!result.canceled && result.error) {
+    const statusEl = document.getElementById('status-text');
+    if (statusEl) statusEl.textContent = 'SAVE ERR';
+  }
 });
 
 document.getElementById('chord-history-clear').addEventListener('click', () => {

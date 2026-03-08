@@ -5,5 +5,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getMidiOutputs: () => ipcRenderer.invoke('get-midi-outputs'),
   selectMidiOutput: (index) => ipcRenderer.invoke('select-midi-output', index),
   sendNoteOn: (note, velocity) => ipcRenderer.invoke('midi-note-on', note, velocity),
-  sendNoteOff: (note) => ipcRenderer.invoke('midi-note-off', note)
+  sendNoteOff: (note) => ipcRenderer.invoke('midi-note-off', note),
+  saveMidiFile: (chordHistory) => ipcRenderer.invoke('save-midi-file', chordHistory)
 });
