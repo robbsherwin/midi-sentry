@@ -290,6 +290,37 @@
       margin-top: 10px;
     }
 
+    #key-selector-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+    #key-selector-row .chord-section-label { margin-bottom: 0; margin-right: 2px; }
+    #key-select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      outline: none;
+      min-width: 100px;
+    }
+    #key-select:focus { border-color: var(--accent); }
+    .chord-key-checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .chord-key-checkbox-label input { cursor: pointer; }
     .chord-section-label {
       font-family: 'Space Mono', monospace;
       font-size: 9px;
@@ -339,6 +370,21 @@
       border-color: var(--accent);
       color: var(--accent);
       box-shadow: 0 0 12px rgba(0,136,170,0.2);
+    }
+
+    .chord-btn.diatonic {
+      border-left: 3px solid rgba(0,136,170,0.6);
+      padding-left: 7px;
+    }
+    .chord-btn.diatonic-only-restricted {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .chord-btn.diatonic-only-restricted:hover {
+      border-color: var(--border);
+      color: var(--muted);
+      background: transparent;
+      box-shadow: none;
     }
 
     /* ── MONOPHONIC (TYPHON) MODE: GHOST CHORD UI ── */
@@ -536,6 +582,35 @@
       scrollbar-width: thin;
       scrollbar-color: var(--border) transparent;
     }
+    .chord-history-break {
+      flex-basis: 100%;
+      height: 0;
+      margin: 0;
+      padding: 0;
+      border: none;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .chord-history-new-line-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      background: transparent;
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 14px;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .chord-history-new-line-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
     .chord-history-item {
       display: inline-flex;
       align-items: baseline;
@@ -670,6 +745,40 @@
 
     <!-- Chord Selector (inside piano wrapper, below keys) -->
     <div id="chord-selector">
+      <div id="key-selector-row">
+        <label for="key-select" class="chord-section-label">Key</label>
+        <select id="key-select">
+          <option value="">Off</option>
+          <option value="C">C major</option>
+          <option value="C#">C♯ major</option>
+          <option value="D">D major</option>
+          <option value="D#">D♯ major</option>
+          <option value="E">E major</option>
+          <option value="F">F major</option>
+          <option value="F#">F♯ major</option>
+          <option value="G">G major</option>
+          <option value="G#">G♯ major</option>
+          <option value="A">A major</option>
+          <option value="A#">A♯ major</option>
+          <option value="B">B major</option>
+          <option value="Cm">C minor</option>
+          <option value="C#m">C♯ minor</option>
+          <option value="Dm">D minor</option>
+          <option value="D#m">D♯ minor</option>
+          <option value="Em">E minor</option>
+          <option value="Fm">F minor</option>
+          <option value="F#m">F♯ minor</option>
+          <option value="Gm">G minor</option>
+          <option value="G#m">G♯ minor</option>
+          <option value="Am">A minor</option>
+          <option value="A#m">A♯ minor</option>
+          <option value="Bm">B minor</option>
+        </select>
+        <label class="chord-key-checkbox-label">
+          <input type="checkbox" id="diatonic-only-checkbox" title="Only allow diatonic chord types">
+          <span>Diatonic only</span>
+        </label>
+      </div>
       <div class="chord-section-label">Chord Type</div>
       <div class="chord-groups" id="chord-groups"></div>
     </div>
@@ -680,6 +789,7 @@
     <div class="chord-history-label">Chords played</div>
     <div id="chord-history-list"></div>
     <div id="chord-history-actions">
+      <button id="chord-history-new-line" class="chord-history-new-line-btn" title="Start new phrase (next chords on new line)">↵</button>
       <button id="chord-history-save-midi">SAVE MIDI</button>
       <button id="chord-history-clear">CLEAR</button>
       <button id="chord-history-del-last">DEL LAST</button>
@@ -749,6 +859,13 @@ const CHORD_DISPLAY_SHORT = {
   power: '5', oct: '8'
 };
 
+// Diatonic chord type IDs (I, ii, iii, IV, V, vi, vii° and their 7th/extensions in major or natural minor)
+const DIATONIC_CHORD_IDS = new Set([
+  'maj', 'min', 'dim', 'dom7', 'maj7', 'min7', 'hdim7',
+  'dom9', 'maj9', 'min9', 'add9', 'dom11', 'maj11', 'dom13',
+  'power', 'oct'
+]);
+
 // Note names (sharp) and flat equivalents for black keys
 const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const FLAT_NAMES  = ['','Db','','Eb','','','Gb','','Ab','','Bb',''];
@@ -775,7 +892,9 @@ let selectedChordType = CHORD_TYPES[0].chords[0]; // default: Major
 let activeNotes = []; // currently playing midi notes
 let countdownTimer = null;
 let countdownStart = null;
-let chordHistory = []; // { chordName, noteNames } for bottom display
+let chordHistory = [[]]; // array of phrases; each phrase is array of { chordName, noteNames, notes }
+let selectedKey = ''; // '' = off, or 'C', 'C#', ... 'B', 'Cm', ... 'Bm'
+let restrictToDiatonic = false;
 
 // ═══════════════════════════════════════════════════
 // DEVICE CAPABILITIES
@@ -789,15 +908,25 @@ function isMonophonicOutputSelected() {
   return MONOPHONIC_DEVICE_NAME_PATTERNS.some(re => re.test(name));
 }
 
+function updateDiatonicChordUI() {
+  const keyOn = selectedKey !== '';
+  document.querySelectorAll('.chord-btn').forEach(btn => {
+    const id = btn.dataset.chordId;
+    const diatonic = DIATONIC_CHORD_IDS.has(id);
+    btn.classList.toggle('diatonic', keyOn && diatonic);
+    btn.classList.toggle('diatonic-only-restricted', keyOn && restrictToDiatonic && !diatonic);
+    const ghost = isMonophonicOutputSelected();
+    const restricted = keyOn && restrictToDiatonic && !diatonic;
+    btn.disabled = ghost || restricted;
+    btn.setAttribute('aria-disabled', btn.disabled ? 'true' : 'false');
+  });
+}
+
 function updateChordUiForOutput() {
   const ghost = isMonophonicOutputSelected();
   const selector = document.getElementById('chord-selector');
   if (selector) selector.classList.toggle('ghosted', ghost);
-
-  document.querySelectorAll('.chord-btn').forEach(btn => {
-    btn.disabled = ghost;
-    btn.setAttribute('aria-disabled', ghost ? 'true' : 'false');
-  });
+  updateDiatonicChordUI();
 
   // Keep the UI up but make the intent clear when idle.
   if (!activeNotes.length) {
@@ -908,10 +1037,12 @@ function buildChordSelector() {
 
     container.appendChild(groupEl);
   });
+  updateDiatonicChordUI();
 }
 
 function selectChord(chord, btn) {
-  if (isMonophonicOutputSelected()) return; // chord selection is ghosted/disabled in Typhon mode
+  if (isMonophonicOutputSelected()) return;
+  if (btn.disabled) return; // e.g. diatonic-only restriction
   selectedChordType = chord;
   document.querySelectorAll('.chord-btn').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
@@ -946,15 +1077,16 @@ function triggerChord(rootNote) {
     startCountdown();
 
     // Add to chord history (name, note names, and MIDI notes for replay)
+    const phrase = chordHistory[chordHistory.length - 1];
     if (mono) {
       const nn = midiToNoteName(rootNote);
-      chordHistory.push({ chordName: nn, noteNames: nn, notes: [rootNote] });
+      phrase.push({ chordName: nn, noteNames: nn, notes: [rootNote] });
     } else {
       const rootName = midiToName(rootNote);
       const shortLabel = CHORD_DISPLAY_SHORT[selectedChordType.id] || selectedChordType.label;
       const historyChordName = rootName + ' ' + shortLabel;
       const historyNoteNames = notes.map(n => midiToNoteName(n)).join(' ');
-      chordHistory.push({ chordName: historyChordName, noteNames: historyNoteNames, notes: notes.slice() });
+      phrase.push({ chordName: historyChordName, noteNames: historyNoteNames, notes: notes.slice() });
     }
     renderChordHistory();
 
@@ -1051,35 +1183,45 @@ function playChordFromHistory(entry) {
 function renderChordHistory() {
   const list = document.getElementById('chord-history-list');
   list.innerHTML = '';
-  chordHistory.forEach((entry, index) => {
-    const { chordName, noteNames } = entry;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'chord-history-item';
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'chord-name';
-    nameSpan.textContent = chordName;
-    const notesSpan = document.createElement('span');
-    notesSpan.className = 'chord-notes';
-    notesSpan.textContent = '(' + noteNames + ')';
-    btn.appendChild(nameSpan);
-    btn.appendChild(notesSpan);
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'chord-history-item-remove';
-    removeBtn.innerHTML = '&times;';
-    removeBtn.setAttribute('aria-label', 'Remove chord');
-    removeBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      chordHistory.splice(index, 1);
-      renderChordHistory();
+  chordHistory.forEach((phrase, phraseIdx) => {
+    if (phraseIdx > 0) {
+      const br = document.createElement('div');
+      br.className = 'chord-history-break';
+      list.appendChild(br);
+    }
+    phrase.forEach((entry, chordIdx) => {
+      const { chordName, noteNames } = entry;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chord-history-item';
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'chord-name';
+      nameSpan.textContent = chordName;
+      const notesSpan = document.createElement('span');
+      notesSpan.className = 'chord-notes';
+      notesSpan.textContent = '(' + noteNames + ')';
+      btn.appendChild(nameSpan);
+      btn.appendChild(notesSpan);
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'chord-history-item-remove';
+      removeBtn.innerHTML = '&times;';
+      removeBtn.setAttribute('aria-label', 'Remove chord');
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        chordHistory[phraseIdx].splice(chordIdx, 1);
+        if (chordHistory[phraseIdx].length === 0 && chordHistory.length > 1) {
+          chordHistory.splice(phraseIdx, 1);
+        }
+        renderChordHistory();
+      });
+      btn.appendChild(removeBtn);
+      btn.addEventListener('click', (e) => {
+        if (e.target === removeBtn || removeBtn.contains(e.target)) return;
+        playChordFromHistory(entry);
+      });
+      list.appendChild(btn);
     });
-    btn.appendChild(removeBtn);
-    btn.addEventListener('click', (e) => {
-      if (e.target === removeBtn || removeBtn.contains(e.target)) return;
-      playChordFromHistory(entry);
-    });
-    list.appendChild(btn);
   });
 }
 
@@ -1205,6 +1347,24 @@ document.getElementById('velocity-slider').addEventListener('input', function() 
   document.getElementById('vel-val').textContent = this.value;
 });
 
+document.getElementById('key-select').addEventListener('change', function() {
+  selectedKey = this.value || '';
+  updateDiatonicChordUI();
+  if (restrictToDiatonic && selectedKey && !DIATONIC_CHORD_IDS.has(selectedChordType.id)) {
+    const first = CHORD_TYPES.flatMap(g => g.chords).find(c => DIATONIC_CHORD_IDS.has(c.id));
+    if (first) { selectedChordType = first; buildChordSelector(); }
+  }
+});
+
+document.getElementById('diatonic-only-checkbox').addEventListener('change', function() {
+  restrictToDiatonic = this.checked;
+  updateDiatonicChordUI();
+  if (restrictToDiatonic && selectedKey && !DIATONIC_CHORD_IDS.has(selectedChordType.id)) {
+    const first = CHORD_TYPES.flatMap(g => g.chords).find(c => DIATONIC_CHORD_IDS.has(c.id));
+    if (first) { selectedChordType = first; buildChordSelector(); }
+  }
+});
+
 // ═══════════════════════════════════════════════════
 // DEVICE CONTROLS
 // ═══════════════════════════════════════════════════
@@ -1230,10 +1390,16 @@ document.getElementById('key-labels-toggle').addEventListener('click', function(
   this.classList.toggle('on', on);
 });
 
+document.getElementById('chord-history-new-line').addEventListener('click', () => {
+  if (chordHistory[chordHistory.length - 1].length > 0) chordHistory.push([]);
+  renderChordHistory();
+});
+
 document.getElementById('chord-history-save-midi').addEventListener('click', async () => {
-  if (!chordHistory.length) return;
+  const flat = chordHistory.flat();
+  if (!flat.length) return;
   if (!window.electronAPI || !window.electronAPI.saveMidiFile) return;
-  const result = await window.electronAPI.saveMidiFile(chordHistory);
+  const result = await window.electronAPI.saveMidiFile(flat);
   if (result.ok) {
     const statusEl = document.getElementById('status-text');
     if (statusEl) statusEl.textContent = 'MIDI SAVED';
@@ -1245,12 +1411,14 @@ document.getElementById('chord-history-save-midi').addEventListener('click', asy
 });
 
 document.getElementById('chord-history-clear').addEventListener('click', () => {
-  chordHistory = [];
+  chordHistory = [[]];
   renderChordHistory();
 });
 document.getElementById('chord-history-del-last').addEventListener('click', () => {
   if (chordHistory.length) {
-    chordHistory.pop();
+    const last = chordHistory[chordHistory.length - 1];
+    last.pop();
+    if (last.length === 0 && chordHistory.length > 1) chordHistory.pop();
     renderChordHistory();
   }
 });
