@@ -321,6 +321,26 @@
       user-select: none;
     }
     .chord-key-checkbox-label input { cursor: pointer; }
+    #inversion-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    #inversion-row .chord-section-label { margin-bottom: 0; }
+    #inversion-select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      outline: none;
+      min-width: 72px;
+    }
+    #inversion-select:focus { border-color: var(--accent); }
     .chord-section-label {
       font-family: 'Space Mono', monospace;
       font-size: 9px;
@@ -686,7 +706,7 @@
   </style>
 </head>
 <body>
-<div id="app">
+<div id="app" class="show-key-names">
 
   <!-- Header -->
   <header>
@@ -720,7 +740,7 @@
           <button id="devtools-btn">DEVTOOLS</button>
         </div>
         <div id="key-labels-row">
-          <button id="key-labels-toggle" type="button" class="toggle-btn" title="Show note names on all keys">KEY NAMES</button>
+          <button id="key-labels-toggle" type="button" class="toggle-btn on" title="Show note names on all keys">KEY NAMES</button>
         </div>
       </div>
       <div id="midi-status">
@@ -778,6 +798,15 @@
           <input type="checkbox" id="diatonic-only-checkbox" title="Only allow diatonic chord types">
           <span>Diatonic only</span>
         </label>
+      </div>
+      <div id="inversion-row">
+        <label for="inversion-select" class="chord-section-label">Inversion</label>
+        <select id="inversion-select">
+          <option value="0">Root</option>
+          <option value="1">1st</option>
+          <option value="2">2nd</option>
+          <option value="3">3rd</option>
+        </select>
       </div>
       <div class="chord-section-label">Chord Type</div>
       <div class="chord-groups" id="chord-groups"></div>
@@ -883,6 +912,20 @@ function midiToFlatName(midi) {
   return FLAT_NAMES[midi % 12];
 }
 
+// Return chord intervals in the given inversion (0=root, 1=1st=3rd in bass, etc.)
+function getInvertedIntervals(intervals, inv) {
+  if (!intervals.length) return intervals;
+  inv = Math.max(0, Math.min(inv, intervals.length - 1));
+  if (inv === 0) return intervals.slice();
+  const n = intervals.length;
+  const rotated = [];
+  for (let i = 0; i < n; i++) rotated.push(intervals[(inv + i) % n]);
+  for (let j = 1; j < n; j++) {
+    while (rotated[j] < rotated[0]) rotated[j] += 12;
+  }
+  return rotated;
+}
+
 // ═══════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════
@@ -895,6 +938,7 @@ let countdownStart = null;
 let chordHistory = [[]]; // array of phrases; each phrase is array of { chordName, noteNames, notes }
 let selectedKey = ''; // '' = off, or 'C', 'C#', ... 'B', 'Cm', ... 'Bm'
 let restrictToDiatonic = false;
+let selectedInversion = 0; // 0=root, 1=1st, 2=2nd, 3=3rd
 
 // ═══════════════════════════════════════════════════
 // DEVICE CAPABILITIES
@@ -1061,7 +1105,9 @@ function triggerChord(rootNote) {
 
     const velocity = parseInt(document.getElementById('velocity-slider').value, 10) || 100;
     const mono = isMonophonicOutputSelected();
-    const intervals = mono ? [0] : selectedChordType.intervals;
+    const baseIntervals = mono ? [0] : selectedChordType.intervals;
+    const inv = Math.min(selectedInversion, baseIntervals.length - 1);
+    const intervals = inv === 0 ? baseIntervals : getInvertedIntervals(baseIntervals, inv);
     const notes = intervals
       .map(i => rootNote + i)
       .filter(n => n >= 0 && n <= 127);
@@ -1363,6 +1409,10 @@ document.getElementById('diatonic-only-checkbox').addEventListener('change', fun
     const first = CHORD_TYPES.flatMap(g => g.chords).find(c => DIATONIC_CHORD_IDS.has(c.id));
     if (first) { selectedChordType = first; buildChordSelector(); }
   }
+});
+
+document.getElementById('inversion-select').addEventListener('change', function() {
+  selectedInversion = parseInt(this.value, 10) || 0;
 });
 
 // ═══════════════════════════════════════════════════
