@@ -424,11 +424,15 @@
     }
 
     /* ── MIDI DEVICE SELECTOR ── */
+    #device-wrap {
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
     #device-row {
       display: flex;
       align-items: center;
       gap: 10px;
-      flex-shrink: 0;
     }
 
     #device-row label {
@@ -468,6 +472,30 @@
     }
 
     #refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    #reconnect-btn {
+      padding: 5px 10px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.1em;
+    }
+    #reconnect-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    #midi-no-ports-hint {
+      display: none;
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      margin-top: 4px;
+    }
+    #midi-no-ports-hint.visible { display: block; }
 
     #devtools-btn {
       padding: 5px 10px;
@@ -733,11 +761,15 @@
             <option value="10">10 s</option>
           </select>
         </div>
-        <div id="device-row">
-          <label>MIDI Out</label>
-          <select id="midi-output-select"><option value="">— select device —</option></select>
-          <button id="refresh-btn">↺ REFRESH</button>
-          <button id="devtools-btn">DEVTOOLS</button>
+        <div id="device-wrap">
+          <div id="device-row">
+            <label>MIDI Out</label>
+            <select id="midi-output-select"><option value="">— select device —</option></select>
+            <button id="refresh-btn">↺ REFRESH</button>
+            <button id="reconnect-btn">RECONNECT</button>
+            <button id="devtools-btn">DEVTOOLS</button>
+          </div>
+          <div id="midi-no-ports-hint" aria-live="polite">Device missing? Unplug and replug the USB cable, then click Reconnect.</div>
         </div>
         <div id="key-labels-row">
           <button id="key-labels-toggle" type="button" class="toggle-btn on" title="Show note names on all keys">KEY NAMES</button>
@@ -1336,8 +1368,11 @@ async function initMidi() {
 
 function populateOutputs(ports) {
   const select = document.getElementById('midi-output-select');
+  const hint = document.getElementById('midi-no-ports-hint');
   const prevValue = select.value;
   select.innerHTML = '<option value="">— select device —</option>';
+
+  if (hint) hint.classList.toggle('visible', !ports || !ports.length);
 
   if (!ports || !ports.length) {
     updateSelectedOutput();
@@ -1424,10 +1459,22 @@ document.getElementById('midi-output-select').addEventListener('change', () => {
   updateSelectedOutput();
 });
 document.getElementById('refresh-btn').addEventListener('click', async () => {
-  if (window.electronAPI && window.electronAPI.getMidiOutputs) {
-    const ports = await window.electronAPI.getMidiOutputs();
-    populateOutputs(ports);
-  }
+  if (!window.electronAPI || !window.electronAPI.getMidiOutputs) return;
+  const statusEl = document.getElementById('status-text');
+  const prev = statusEl ? statusEl.textContent : '';
+  if (statusEl) statusEl.textContent = 'REFRESHING…';
+  const ports = await window.electronAPI.getMidiOutputs({ releaseFirst: true, delayMs: 500 });
+  populateOutputs(ports);
+  if (statusEl) statusEl.textContent = ports.length ? (document.getElementById('midi-output-select').selectedOptions[0]?.textContent?.toUpperCase().slice(0, 24) || 'MIDI READY') : prev;
+});
+
+document.getElementById('reconnect-btn').addEventListener('click', async () => {
+  if (!window.electronAPI || !window.electronAPI.getMidiOutputs) return;
+  const statusEl = document.getElementById('status-text');
+  if (statusEl) statusEl.textContent = 'RECONNECTING…';
+  const ports = await window.electronAPI.getMidiOutputs({ releaseFirst: true, delayMs: 2000 });
+  populateOutputs(ports);
+  updateSelectedOutput();
 });
 document.getElementById('devtools-btn').addEventListener('click', () => {
   if (typeof window.electronAPI !== 'undefined' && window.electronAPI.openDevTools) {

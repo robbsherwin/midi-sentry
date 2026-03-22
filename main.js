@@ -77,20 +77,40 @@ let mainWindow = null;
 let midiOutput = null;
 let midiPortIndex = null;
 
-function getMidiOutputs() {
-  try {
-    const output = new midi.Output();
-    const count = output.getPortCount();
-    const ports = [];
-    for (let i = 0; i < count; i++) {
-      ports.push({ index: i, name: output.getPortName(i) });
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function getMidiOutputs(opts = {}) {
+  const releaseFirst = opts && opts.releaseFirst;
+  const delayMs = Math.max(0, parseInt(opts.delayMs, 10) || 0);
+
+  function enumerate() {
+    try {
+      const output = new midi.Output();
+      const count = output.getPortCount();
+      const ports = [];
+      for (let i = 0; i < count; i++) {
+        ports.push({ index: i, name: output.getPortName(i) });
+      }
+      try { output.closePort(); } catch (_) {}
+      return ports;
+    } catch (err) {
+      console.error('getMidiOutputs error:', err);
+      return [];
     }
-    try { output.closePort(); } catch (_) {}
-    return ports;
-  } catch (err) {
-    console.error('getMidiOutputs error:', err);
-    return [];
   }
+
+  if (releaseFirst && midiOutput) {
+    try { midiOutput.closePort(); } catch (_) {}
+    midiOutput = null;
+    midiPortIndex = null;
+  }
+
+  if (delayMs > 0) {
+    return delay(delayMs).then(() => enumerate());
+  }
+  return Promise.resolve(enumerate());
 }
 
 function openMidiPort(index) {
@@ -164,7 +184,7 @@ ipcMain.handle('open-devtools', () => {
   if (win && !win.isDestroyed()) win.webContents.openDevTools();
 });
 
-ipcMain.handle('get-midi-outputs', () => getMidiOutputs());
+ipcMain.handle('get-midi-outputs', (_e, opts) => getMidiOutputs(opts));
 ipcMain.handle('select-midi-output', (_e, index) => openMidiPort(index));
 ipcMain.handle('midi-note-on', (_e, note, velocity) => sendMidiNoteOn(note, velocity));
 ipcMain.handle('midi-note-off', (_e, note) => sendMidiNoteOff(note));
